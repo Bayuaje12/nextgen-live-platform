@@ -13,6 +13,7 @@ import RoomPage from "./pages/RoomPage";
 import SettingsPage from "./pages/SettingsPage";
 import AdminPage from "./pages/AdminPage";
 import DocsPage from "./pages/DocsPage";
+import AuthCallbackPage from "./pages/AuthCallbackPage";
 import ChatOverlay from "./pages/overlays/ChatOverlay";
 import LowerThirdOverlay from "./pages/overlays/LowerThirdOverlay";
 import CountdownOverlay from "./pages/overlays/CountdownOverlay";
@@ -30,6 +31,7 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route path="/docs" element={<DocsPage />} />
       <Route path="/overlay/chat" element={<ChatOverlay />} />
       <Route path="/overlay/lower-third" element={<LowerThirdOverlay />} />

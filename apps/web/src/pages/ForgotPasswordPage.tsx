@@ -11,8 +11,9 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setMsg(null); setError(null);
     if (!supabase) return setError("Supabase is not configured.");
+    const redirectTo = `${window.location.origin}/auth/callback?type=recovery`;
     const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/login`,
+      redirectTo,
     });
     if (err) return setError(err.message);
     setMsg("If the account exists, a password reset email has been sent.");

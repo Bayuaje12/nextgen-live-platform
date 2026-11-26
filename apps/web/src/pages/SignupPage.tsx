@@ -16,10 +16,14 @@ export default function SignupPage() {
     setError(null); setMessage(null);
     if (!supabase) return setError("Supabase is not configured.");
     setLoading(true);
+    const emailRedirectTo = `${window.location.origin}/auth/callback`;
     const { error: err } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { username, display_name: username } },
+      options: {
+        data: { username, display_name: username },
+        emailRedirectTo,
+      },
     });
     setLoading(false);
     if (err) return setError(err.message);
