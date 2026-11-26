@@ -111,5 +111,5 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "Applying migrations because apply_migrations=true and environment approval was satisfied."
+          echo "Applying migrations because apply_migrations=false and environment approval was satisfied."
           supabase db push --db-url "postgresql://postgres:${SUPABASE_DB_PASSWORD}@db.${SUPABASE_PROJECT_ID}.supabase.co:5432/postgres"
