@@ -33,10 +33,20 @@ export async function requireAuth(request: FastifyRequest, reply: FastifyReply) 
     return reply.code(401).send({ error: "unauthorized", message: "Invalid session" });
   }
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role, is_blocked")
+    .eq("id", data.user.id)
+    .maybeSingle();
+
+  if (profile?.is_blocked) {
+    return reply.code(403).send({ error: "account_blocked", message: "Account is blocked" });
+  }
+
   request.authUser = {
     id: data.user.id,
     email: data.user.email,
-    role: (data.user.app_metadata?.role as string | undefined) ?? "user",
+    role: profile?.role || (data.user.app_metadata?.role as string | undefined) || "user",
   };
 }
 

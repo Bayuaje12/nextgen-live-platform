@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabase";
 import { config } from "../lib/config";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -15,12 +15,28 @@ export default function LoginPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!supabase) return setError("Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
     setLoading(true);
-    const { error: err } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (err) return setError(err.message);
-    navigate(from, { replace: true });
+    try {
+      const res = await fetch(`${config.apiUrl}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.message || "Login failed");
+      if (supabase && body.session) {
+        const { error: sessionErr } = await supabase.auth.setSession({
+          access_token: body.session.access_token,
+          refresh_token: body.session.refresh_token,
+        });
+        if (sessionErr) throw sessionErr;
+      }
+      navigate(from, { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -28,10 +44,10 @@ export default function LoginPage() {
       <div className="mx-auto max-w-md card p-6">
         <Link to="/" className="font-display text-2xl font-bold"><span className="bg-lime px-2">{config.appName}</span></Link>
         <h1 className="mt-6 font-display text-3xl font-bold">Log in</h1>
-        <p className="mt-2 text-muted">Access your dashboard, rooms, and production tools.</p>
+        <p className="mt-2 text-muted">Sign in with your username and password.</p>
         <form className="mt-6 space-y-4" onSubmit={onSubmit}>
-          <div><label className="label">Email</label><input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
-          <div><label className="label">Password</label><input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
+          <div><label className="label">Username</label><input className="input" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" required /></div>
+          <div><label className="label">Password</label><input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required /></div>
           {error && <div className="border-2 border-danger bg-red-50 p-3 text-sm font-medium">{error}</div>}
           <button className="btn-primary w-full" disabled={loading}>{loading ? "Signing in..." : "Sign in"}</button>
         </form>

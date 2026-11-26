@@ -5,6 +5,7 @@ import rateLimit from "@fastify/rate-limit";
 import sensible from "@fastify/sensible";
 import { env } from "./env.js";
 import { adminRoutes } from "./routes/admin.js";
+import { authRoutes } from "./routes/auth.js";
 import { healthRoutes } from "./routes/health.js";
 import { obsRoutes } from "./routes/obs.js";
 import { roomRoutes } from "./routes/rooms.js";
@@ -26,6 +27,7 @@ async function buildServer() {
   await app.register(sensible);
 
   await app.register(healthRoutes, { prefix: "/api" });
+  await app.register(authRoutes, { prefix: "/api" });
   await app.register(roomRoutes, { prefix: "/api" });
   await app.register(obsRoutes, { prefix: "/api" });
   await app.register(adminRoutes, { prefix: "/api" });
