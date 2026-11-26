@@ -1,0 +1,21 @@
+{
+  "name": "nextgen-live-platform",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "dev:web": "pnpm --filter @nextgen/web dev",
+    "dev:server": "pnpm --filter @nextgen/server dev",
+    "build": "pnpm -r build",
+    "build:web": "pnpm --filter @nextgen/web build",
+    "build:server": "pnpm --filter @nextgen/server build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "format": "pnpm -r format"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

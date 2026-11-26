@@ -1,0 +1,28 @@
+node_modules
+dist
+build
+.vite
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+coverage
+.tmp
+.temp
+.idea
+.vscode
+*.local
+supabase/.branches
+supabase/.temp
+playwright-report
+test-results
+# Local tool/agent directories
+.agents/
+.aider-desk/
+.claude/
+agent/
+skills-lock.json
+# Vercel
+.vercel
+
