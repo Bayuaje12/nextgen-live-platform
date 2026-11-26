@@ -1,0 +1,115 @@
+name: Supabase Migration Inspection
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply_migrations:
+        description: "DANGEROUS: Apply migrations with `supabase db push`. Leave false for inspection only."
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-migrations-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    name: Inspect remote migration state
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets are present
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_ID; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing required secret: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+          echo "Required secrets are present (values not printed)."
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Supabase CLI version
+        run: supabase --version
+
+      - name: Link Supabase project
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: List local migrations
+        run: |
+          echo "Local migration files:"
+          ls -1 supabase/migrations || true
+
+      - name: Inspect remote migration list
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase migration list --db-url "postgresql://postgres:${SUPABASE_DB_PASSWORD}@db.${SUPABASE_PROJECT_ID}.supabase.co:5432/postgres"
+
+      - name: Inspection summary
+        run: |
+          echo "Inspection complete. No migrations were applied."
+          echo "Review the migration list output before considering any db push."
+
+  apply:
+    name: Apply migrations (manual approval required)
+    needs: inspect
+    if: ${{ inputs.apply_migrations == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: supabase-production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link Supabase project
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Show migration list before push
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase migration list --db-url "postgresql://postgres:${SUPABASE_DB_PASSWORD}@db.${SUPABASE_PROJECT_ID}.supabase.co:5432/postgres"
+
+      - name: Push migrations (explicitly approved)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Applying migrations because apply_migrations=true and environment approval was satisfied."
+          supabase db push --db-url "postgresql://postgres:${SUPABASE_DB_PASSWORD}@db.${SUPABASE_PROJECT_ID}.supabase.co:5432/postgres"
