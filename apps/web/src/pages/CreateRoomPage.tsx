@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../lib/api";
+import { useGuestStore } from "../store/guest";
 
 export default function CreateRoomPage() {
   const navigate = useNavigate();
+  const { ensureSession } = useGuestStore();
   const [form, setForm] = useState({
-    title: "", description: "", visibility: "private", template: "live", password: "", waitingRoomEnabled: true, maxParticipants: 12,
+    title: "", description: "", displayName: "", visibility: "private", template: "live", password: "", waitingRoomEnabled: true, maxParticipants: 12,
   });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -16,8 +18,10 @@ export default function CreateRoomPage() {
     e.preventDefault();
     setLoading(true); setError(null);
     try {
-      const payload = { ...form, password: form.password || undefined };
-      const res = await apiFetch<{ room: { slug: string } }>("/api/rooms", { method: "POST", body: JSON.stringify(payload) });
+      await ensureSession(form.displayName || undefined);
+      const payload = { ...form, password: form.password || undefined, displayName: form.displayName || undefined };
+      const res = await apiFetch<{ room: { slug: string }; hostCredential?: string; roomCode?: string }>("/api/rooms", { method: "POST", body: JSON.stringify(payload) });
+      if (res.hostCredential) sessionStorage.setItem(`hostcred:${res.room.slug}`, res.hostCredential);
       navigate(`/room/${res.room.slug}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create room");
@@ -29,8 +33,9 @@ export default function CreateRoomPage() {
   return (
     <div className="max-w-3xl">
       <h1 className="font-display text-4xl font-bold">Create room</h1>
-      <p className="mt-2 text-muted">Configure a live room template, access, and studio options.</p>
+      <p className="mt-2 text-muted">Go live instantly — no account required.</p>
       <form onSubmit={onSubmit} className="card mt-6 space-y-4 p-6">
+        <div><label className="label">Your display name (optional)</label><input className="input" value={form.displayName} onChange={(e) => set("displayName", e.target.value)} /></div>
         <div><label className="label">Title</label><input className="input" value={form.title} onChange={(e) => set("title", e.target.value)} required /></div>
         <div><label className="label">Description</label><textarea className="input min-h-24" value={form.description} onChange={(e) => set("description", e.target.value)} /></div>
         <div className="grid gap-4 md:grid-cols-2">

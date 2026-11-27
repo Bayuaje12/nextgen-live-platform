@@ -9,31 +9,22 @@ vi.mock("../supabase.js", () => ({
   getSupabaseAdmin: mockGetSupabaseAdmin,
 }));
 
-vi.mock("../auth.js", () => ({
-  requireAuth: async (req: any, reply: any) => {
+vi.mock("../guestSession.js", () => ({
+  getGuestSessionFromRequest: async (req: any) => {
+    const auth = req.headers.authorization;
+    if (!auth) return null;
+    return { id: "guest-1", guestId: "g_1", displayName: "Guest", expiresAt: new Date(Date.now() + 3600000).toISOString() };
+  },
+  requireGuestSession: async (req: any, reply: any) => {
     const auth = req.headers.authorization;
     if (!auth) return reply.code(401).send({ error: "unauthorized" });
-    req.authUser = { id: "user-1", role: "user" };
-  },
-  requireAdmin: async (req: any, reply: any) => {
-    if (req.authUser?.role !== "admin") return reply.code(403).send({ error: "forbidden" });
+    req.guestSession = { id: "guest-1", guestId: "g_1", displayName: "Guest", expiresAt: new Date(Date.now() + 3600000).toISOString() };
   },
 }));
 
 import { roomRoutes } from "./rooms.js";
 
-function makeSupabase() {
-  const single = vi.fn().mockResolvedValue({ data: null, error: null });
-  const eq: any = vi.fn().mockReturnValue({ single, eq: vi.fn().mockReturnThis(), order: vi.fn().mockReturnThis(), limit: vi.fn().mockResolvedValue({ data: [], error: null }) });
-  const order = vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: [], error: null }) });
-  const select = vi.fn().mockReturnValue({ eq, order, single });
-  const insert = vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single }) });
-  const update = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) });
-  const from = vi.fn().mockReturnValue({ select, insert, update });
-  return { from, auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } }, error: null }) } };
-}
-
-describe("room routes", () => {
+describe("room routes (accountless)", () => {
   beforeEach(() => {
     mockGetSupabaseAdmin.mockReset();
   });
@@ -46,27 +37,35 @@ describe("room routes", () => {
     expect(res.statusCode).toBe(503);
   });
 
-  it("rejects room creation without auth", async () => {
-    mockGetSupabaseAdmin.mockReturnValue(makeSupabase());
+  it("rejects room creation without guest session", async () => {
+    mockGetSupabaseAdmin.mockReturnValue({ from: vi.fn() });
     const app = Fastify();
     await app.register(roomRoutes);
     const res = await app.inject({ method: "POST", url: "/rooms", payload: { title: "Test room" } });
     expect(res.statusCode).toBe(401);
   });
 
-  it("rejects lock without auth", async () => {
-    mockGetSupabaseAdmin.mockReturnValue(makeSupabase());
+  it("rejects lock without guest session", async () => {
+    mockGetSupabaseAdmin.mockReturnValue({ from: vi.fn() });
     const app = Fastify();
     await app.register(roomRoutes);
     const res = await app.inject({ method: "POST", url: "/rooms/test-room/lock", payload: { locked: true } });
     expect(res.statusCode).toBe(401);
   });
 
-  it("rejects member review without auth", async () => {
-    mockGetSupabaseAdmin.mockReturnValue(makeSupabase());
+  it("rejects member review without guest session", async () => {
+    mockGetSupabaseAdmin.mockReturnValue({ from: vi.fn() });
     const app = Fastify();
     await app.register(roomRoutes);
     const res = await app.inject({ method: "POST", url: "/rooms/test-room/members/11111111-1111-1111-1111-111111111111/review", payload: { action: "approve" } });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("rejects chat post without guest session", async () => {
+    mockGetSupabaseAdmin.mockReturnValue({ from: vi.fn() });
+    const app = Fastify();
+    await app.register(roomRoutes);
+    const res = await app.inject({ method: "POST", url: "/rooms/test-room/chat", payload: { content: "hi" } });
     expect(res.statusCode).toBe(401);
   });
 });

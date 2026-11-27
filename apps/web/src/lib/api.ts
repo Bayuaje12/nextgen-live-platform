@@ -1,14 +1,12 @@
 import { config } from "./config";
-import { supabase } from "./supabase";
+
+const TOKEN_KEY = "nextgen_guest_token";
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
-  headers.set("Content-Type", "application/json");
-  if (supabase) {
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    if (token) headers.set("Authorization", `Bearer ${token}`);
-  }
+  if (!(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
+  const token = typeof window !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null;
+  if (token) headers.set("Authorization", `Bearer ${token}`);
   const res = await fetch(`${config.apiUrl}${path}`, { ...init, headers });
   const text = await res.text();
   const body = text ? JSON.parse(text) : null;

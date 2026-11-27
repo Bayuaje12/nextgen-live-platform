@@ -2,18 +2,17 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Copy, Mic, MicOff, Video, VideoOff, MonitorUp, CircleDot, MessageSquare, Radio, Users, ScreenShare, ScreenShareOff } from "lucide-react";
 import { apiFetch } from "../lib/api";
-import { config, hasSupabaseConfig } from "../lib/config";
-import { supabase } from "../lib/supabase";
-import { useAuthStore } from "../store/auth";
+import { config } from "../lib/config";
+import { useGuestStore } from "../store/guest";
 import { VdoStudioClient, type VdoParticipant, type VdoStatus } from "../features/stream/vdoSdk";
 
-type Room = { id: string; slug: string; title: string; description?: string; status: string; visibility: string; template: string };
+type Room = { id: string; slug: string; title: string; description?: string; status: string; visibility: string; template: string; password_protected?: boolean; room_code?: string; owner_guest_session_id?: string | null };
 type ChatMessage = { id: string; display_name: string; content: string; created_at: string };
 type RemoteStream = { uuid: string; streamID?: string; label?: string; stream: MediaStream };
 
 export default function RoomPage() {
   const { slug = "" } = useParams();
-  const { user } = useAuthStore();
+  const { session: guestSession, ensureSession } = useGuestStore();
   const [room, setRoom] = useState<Room | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -22,6 +21,7 @@ export default function RoomPage() {
   const [joined, setJoined] = useState(false);
   const [guestName, setGuestName] = useState("");
   const [password, setPassword] = useState("");
+  const [roomCode, setRoomCode] = useState("");
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
   const [screenSharing, setScreenSharing] = useState(false);
@@ -47,19 +47,18 @@ export default function RoomPage() {
   }, [slug]);
 
   useEffect(() => {
-    const sb = supabase;
-    if (!sb || !room) return;
-    const channel = sb
-      .channel(`room-chat-${room.id}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages", filter: `room_id=eq.${room.id}` }, (payload) => {
-        setChat((c) => [...c, payload.new as ChatMessage]);
-      })
-      .subscribe();
-    void sb.from("chat_messages").select("*").eq("room_id", room.id).order("created_at", { ascending: true }).limit(50).then(({ data }) => {
-      if (data) setChat(data as ChatMessage[]);
-    });
-    return () => { void sb.removeChannel(channel); };
-  }, [room]);
+    if (!room) return;
+    let cancelled = false;
+    async function load() {
+      try {
+        const d = await apiFetch<{ messages: ChatMessage[] }>(`/api/rooms/${slug}/chat`);
+        if (!cancelled) setChat(d.messages || []);
+      } catch { /* chat endpoint may be unavailable */ }
+    }
+    void load();
+    const t = setInterval(load, 4000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [room, slug]);
 
   useEffect(() => { if (localVideoRef.current && localStream) localVideoRef.current.srcObject = localStream; }, [localStream]);
   useEffect(() => () => { void vdoRef.current?.disconnect(); }, []);
@@ -80,17 +79,19 @@ export default function RoomPage() {
 
   const vdoIframeUrl = useMemo(() => {
     if (!room) return "";
-    const pushId = encodeURIComponent(`${room.slug}-${user?.id || guestName || "guest"}`);
-    const params = new URLSearchParams({ room: room.slug, push: pushId, webaudio: "", cleanoutput: "", label: user?.email || guestName || "Guest" });
+    const pushId = encodeURIComponent(`${room.slug}-${guestSession?.guestId || guestName || "guest"}`);
+    const params = new URLSearchParams({ room: room.slug, push: pushId, webaudio: "", cleanoutput: "", label: guestSession?.displayName || guestName || "Guest" });
     if (!micOn) params.set("muted", "");
     if (!camOn) params.set("vd", "0");
     return `${config.vdoNinjaBaseUrl}/?${params.toString()}`;
-  }, [room, user, guestName, micOn, camOn]);
+  }, [room, guestSession?.displayName, guestSession?.guestId, guestName, micOn, camOn]);
 
   async function joinRoom() {
     setError(null); setNotice(null);
     try {
-      await apiFetch(`/api/rooms/${slug}/join`, { method: "POST", body: JSON.stringify({ password: password || undefined, guestName: guestName || undefined }) });
+      await ensureSession(guestName || undefined);
+      const hostCredential = sessionStorage.getItem(`hostcred:${slug}`) || undefined;
+      await apiFetch(`/api/rooms/${slug}/join`, { method: "POST", body: JSON.stringify({ password: password || undefined, guestName: guestName || undefined, hostCredential, roomCode: roomCode || undefined }) });
       setJoined(true);
       if (useSdk) await startSdk();
     } catch (e) { setError(e instanceof Error ? e.message : "Failed to join room"); }
@@ -124,8 +125,8 @@ export default function RoomPage() {
       vdoRef.current = client;
       const stream = await client.connectAndPublish({
         room: room.slug,
-        streamID: `${room.slug}-${(user?.id || guestName || "guest").replace(/[^a-zA-Z0-9_-]/g, "")}`.slice(0, 60),
-        label: user?.email || guestName || "Guest",
+        streamID: `${room.slug}-${(guestSession?.guestId || guestName || "guest").replace(/[^a-zA-Z0-9_-]/g, "")}`.slice(0, 60),
+        label: guestSession?.displayName || guestName || "Guest",
         password: false,
         audio: micOn,
         video: camOn,
@@ -170,10 +171,14 @@ export default function RoomPage() {
 
   async function sendChat(e: React.FormEvent) {
     e.preventDefault();
-    if (!supabase || !room || !chatInput.trim()) return;
-    const displayName = user?.email || guestName || "Guest";
-    const { error: err } = await supabase.from("chat_messages").insert({ room_id: room.id, user_id: user?.id ?? null, display_name: displayName, content: chatInput.trim(), type: "message" });
-    if (err) setError(err.message); else setChatInput("");
+    if (!room || !chatInput.trim()) return;
+    try {
+      await ensureSession(guestName || undefined);
+      await apiFetch(`/api/rooms/${slug}/chat`, { method: "POST", body: JSON.stringify({ content: chatInput.trim(), displayName: guestSession?.displayName || guestName || "Guest" }) });
+      setChatInput("");
+      const d = await apiFetch<{ messages: ChatMessage[] }>(`/api/rooms/${slug}/chat`);
+      setChat(d.messages || []);
+    } catch (err) { setError(err instanceof Error ? err.message : "Chat failed"); }
   }
 
   async function toggleRecording() {
@@ -203,7 +208,8 @@ export default function RoomPage() {
         <div className="mx-auto max-w-xl card p-6">
           <h1 className="font-display text-3xl font-bold">{room?.title || "Join room"}</h1>
           <p className="mt-2 text-muted">{room?.description || "Enter the room to join the live session."}</p>
-          {!user && <div className="mt-4"><label className="label">Guest name</label><input className="input" value={guestName} onChange={(e) => setGuestName(e.target.value)} /></div>}
+          <div className="mt-4"><label className="label">Display name (optional)</label><input className="input" value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder={guestSession?.displayName || "Guest"} /></div>
+          <div className="mt-4"><label className="label">Room code (if private)</label><input className="input" value={roomCode} onChange={(e) => setRoomCode(e.target.value)} placeholder="Enter room code" /></div>
           <div className="mt-4"><label className="label">Room password (if required)</label><input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></div>
           <label className="mt-4 flex items-center gap-2 font-semibold"><input type="checkbox" checked={useSdk} onChange={(e) => setUseSdk(e.target.checked)} /> Use official VDO.Ninja SDK (recommended)</label>
           {error && <div className="mt-4 border-2 border-danger bg-red-50 p-3 text-sm">{error}</div>}
@@ -221,6 +227,9 @@ export default function RoomPage() {
             <div className="inline-block border-2 border-ink bg-lime px-2 text-xs font-bold">{room?.status?.toUpperCase() || "ROOM"}</div>
             <h1 className="font-display text-2xl font-bold">{room?.title}</h1>
             <div className="text-sm text-muted">{room?.template} • {room?.visibility} • SDK: {sdkStatus}</div>
+            {room?.room_code && guestSession?.id && room.owner_guest_session_id === guestSession.id && (
+              <div className="mt-1 text-xs font-semibold">Room code: <span className="bg-lime px-1">{room.room_code}</span></div>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">
             <button className="btn-secondary" onClick={copyLink}><Copy size={16} /> Copy</button>
@@ -276,7 +285,6 @@ export default function RoomPage() {
           <div className="card flex min-h-[40vh] flex-col">
             <div className="border-b-2 border-ink p-3 font-semibold flex items-center gap-2"><MessageSquare size={16} /> Live chat</div>
             <div className="flex-1 space-y-3 overflow-auto p-3">
-              {!hasSupabaseConfig && <div className="text-sm text-muted">Configure Supabase to enable persistent real-time chat.</div>}
               {chat.map((m) => <div key={m.id} className="border-2 border-ink bg-background p-2"><div className="text-xs font-bold">{m.display_name}</div><div className="text-sm">{m.content}</div></div>)}
             </div>
             <form onSubmit={sendChat} className="border-t-2 border-ink p-3"><div className="flex gap-2"><input className="input" value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Send a message" /><button className="btn-primary" type="submit">Send</button></div></form>

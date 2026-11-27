@@ -22,22 +22,22 @@ export default function LandingPage() {
             <a href="#features">Features</a><a href="#how">How it works</a><a href="#obs">OBS</a><a href="#faq">FAQ</a><Link to="/docs">Docs</Link>
           </nav>
           <div className="flex gap-2">
-            <Link to="/login" className="btn-secondary">Log in</Link>
-            <Link to="/signup" className="btn-primary">Get started</Link>
+            <Link to="/dashboard" className="btn-secondary">Dashboard</Link>
+            <Link to="/rooms/new" className="btn-primary">Go live</Link>
           </div>
         </div>
       </header>
 
       <section className="mx-auto grid max-w-7xl gap-8 p-4 py-16 md:grid-cols-2 md:items-center">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="mb-4 inline-block border-2 border-ink bg-violet px-3 py-1 font-bold text-white shadow-brutal-sm">All features free. No paywall.</div>
+          <div className="mb-4 inline-block border-2 border-ink bg-violet px-3 py-1 font-bold text-white shadow-brutal-sm">Go Live. No Signup.</div>
           <h1 className="font-display text-5xl font-bold leading-tight md:text-6xl">The all-in-one live studio for creators, teams, and communities.</h1>
-          <p className="mt-4 max-w-xl text-lg text-muted">Stream, host guests, chat, record, teach, podcast, and run events from one responsive web platform.</p>
+          <p className="mt-4 max-w-xl text-lg text-muted">Stream, host guests, chat, record, teach, podcast, and run events from one responsive web platform. No account required.</p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link to="/signup" className="btn-primary">Create your studio <ArrowRight size={18} /></Link>
+            <Link to="/rooms/new" className="btn-primary">Create room <ArrowRight size={18} /></Link>
             <Link to="/dashboard" className="btn-secondary">Open dashboard</Link>
           </div>
-          <div className="mt-6 text-sm font-medium text-muted">Free app access. External infrastructure quotas still apply.</div>
+          <div className="mt-6 text-sm font-medium text-muted">Free app access. No account. External infrastructure quotas still apply.</div>
         </motion.div>
         <div className="card p-4">
           <div className="border-2 border-ink bg-ink p-4 text-white shadow-brutal-sm">
@@ -113,7 +113,7 @@ export default function LandingPage() {
       <footer className="border-t-2 border-ink bg-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between">
           <div><div className="font-display text-xl font-bold">{config.appName}</div><div className="text-sm text-muted">Professional live streaming, built responsibly.</div></div>
-          <div className="flex flex-wrap gap-4 font-semibold"><Link to="/docs">Docs</Link><a href={config.whatsappCommunityUrl} target="_blank" rel="noreferrer">Community</a><Link to="/login">Login</Link></div>
+          <div className="flex flex-wrap gap-4 font-semibold"><Link to="/docs">Docs</Link><a href={config.whatsappCommunityUrl} target="_blank" rel="noreferrer">Community</a><Link to="/rooms/new">Go live</Link></div>
         </div>
       </footer>
     </div>

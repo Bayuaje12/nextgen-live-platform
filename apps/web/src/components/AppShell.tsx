@@ -1,20 +1,17 @@
-import { Link, NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Radio, Settings, Shield, LogOut, Menu, X } from "lucide-react";
+import { Link, NavLink } from "react-router-dom";
+import { LayoutDashboard, Radio, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { config } from "../lib/config";
-import { useAuthStore } from "../store/auth";
+import { useGuestStore } from "../store/guest";
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/rooms/new", label: "Create Room", icon: Radio },
-  { to: "/settings", label: "Settings", icon: Settings },
-  { to: "/admin", label: "Admin", icon: Shield },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
-  const { user, signOut } = useAuthStore();
-  const navigate = useNavigate();
+  const session = useGuestStore((s) => s.session);
   return (
     <div className="min-h-screen bg-background text-ink md:grid md:grid-cols-[260px_1fr]">
       <aside className={`border-r-2 border-ink bg-white p-4 ${open ? "block" : "hidden"} md:block`}>
@@ -39,16 +36,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
         <div className="mt-8 border-2 border-ink bg-background p-3 text-sm shadow-brutal-sm">
-          <div className="font-semibold">{user?.email || "Guest"}</div>
-          <button
-            className="btn-secondary mt-3 w-full"
-            onClick={async () => {
-              await signOut();
-              navigate("/");
-            }}
-          >
-            <LogOut size={16} /> Sign out
-          </button>
+          <div className="font-semibold">{session?.displayName || "Guest"}</div>
+          <div className="text-muted text-xs break-all">{session?.guestId || "No session yet"}</div>
         </div>
       </aside>
       <div>

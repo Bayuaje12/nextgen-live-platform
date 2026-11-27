@@ -1,33 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
-import { requireAdmin } from "./auth.js";
 
-function mockReply() {
-  const reply: any = {};
-  reply.code = vi.fn(() => reply);
-  reply.send = vi.fn(() => reply);
-  return reply;
-}
+vi.mock("./supabase.js", () => ({ getSupabaseAdmin: () => null }));
 
-describe("requireAdmin", () => {
-  it("rejects unauthenticated request", async () => {
-    const req: any = {};
-    const reply = mockReply();
-    await requireAdmin(req, reply);
-    expect(reply.code).toHaveBeenCalledWith(401);
+import { hashToken, generateToken, generateGuestId } from "./guestSession.js";
+
+describe("guest session helpers", () => {
+  it("generates random guest id", () => {
+    const a = generateGuestId();
+    const b = generateGuestId();
+    expect(a).toMatch(/^g_/);
+    expect(a).not.toBe(b);
   });
 
-  it("rejects non-admin user", async () => {
-    const req: any = { authUser: { id: "u1", role: "user" } };
-    const reply = mockReply();
-    await requireAdmin(req, reply);
-    expect(reply.code).toHaveBeenCalledWith(403);
-  });
-
-  it("allows admin user", async () => {
-    const req: any = { authUser: { id: "u1", role: "admin" } };
-    const reply = mockReply();
-    const result = await requireAdmin(req, reply);
-    expect(reply.code).not.toHaveBeenCalled();
-    expect(result).toBeUndefined();
+  it("generates random token and stable hash", () => {
+    const t = generateToken();
+    expect(t.length).toBeGreaterThan(20);
+    expect(hashToken(t)).toBe(hashToken(t));
+    expect(hashToken(t)).not.toBe(hashToken(generateToken()));
   });
 });

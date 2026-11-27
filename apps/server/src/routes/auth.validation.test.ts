@@ -1,32 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-const USERNAME_RE = /^[a-zA-Z0-9_]{3,30}$/;
-const signupSchema = z.object({
-  username: z.string().min(3).max(30).regex(USERNAME_RE),
-  password: z.string().min(8).max(128),
-  displayName: z.string().min(1).max(80).optional(),
-});
-const loginSchema = z.object({
-  username: z.string().min(3).max(30),
-  password: z.string().min(8).max(128),
-});
+const guestSessionSchema = z.object({ displayName: z.string().max(80).optional().nullable() });
+const chatSchema = z.object({ content: z.string().min(1).max(1000), displayName: z.string().max(80).optional() });
 
-describe("auth validation", () => {
-  it("accepts valid username signup", () => {
-    const r = signupSchema.safeParse({ username: "Bayu_01", password: "password123" });
-    expect(r.success).toBe(true);
+describe("accountless validation", () => {
+  it("accepts guest session without display name", () => {
+    expect(guestSessionSchema.safeParse({}).success).toBe(true);
   });
-  it("rejects short username", () => {
-    expect(signupSchema.safeParse({ username: "ab", password: "password123" }).success).toBe(false);
+  it("accepts guest session with display name", () => {
+    expect(guestSessionSchema.safeParse({ displayName: "Bayu" }).success).toBe(true);
   });
-  it("rejects invalid username chars", () => {
-    expect(signupSchema.safeParse({ username: "bad name", password: "password123" }).success).toBe(false);
+  it("rejects too long display name", () => {
+    expect(guestSessionSchema.safeParse({ displayName: "x".repeat(81) }).success).toBe(false);
   });
-  it("rejects short password", () => {
-    expect(signupSchema.safeParse({ username: "validname", password: "short" }).success).toBe(false);
+  it("accepts valid chat message", () => {
+    expect(chatSchema.safeParse({ content: "hello" }).success).toBe(true);
   });
-  it("accepts login payload", () => {
-    expect(loginSchema.safeParse({ username: "user1", password: "password123" }).success).toBe(true);
+  it("rejects empty chat message", () => {
+    expect(chatSchema.safeParse({ content: "" }).success).toBe(false);
   });
 });
